@@ -1,1 +1,76 @@
-<完整 index.html 程式碼會在下一步寫入>
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>會議室預約系統</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .success { background: #d4edda; padding: 10px; }
+        .error { background: #f8d7da; padding: 10px; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>會議室預約</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form action="/book" method="POST">
+        會議室：<select name="room">
+            <option>R樓</option>
+            <option>裕林</option>
+        </select><br>
+        日期：<input type="date" name="date" required><br>
+        起始時間：<select name="start_time">
+            {% for h in range(0,24) %}
+              <option>{{ '%02d' % h }}:30</option>
+              <option>{{ '%02d' % h }}:00</option>
+            {% endfor %}
+        </select><br>
+        結束時間：<select name="end_time">
+            {% for h in range(0,24) %}
+              <option>{{ '%02d' % h }}:30</option>
+              <option>{{ '%02d' % h }}:00</option>
+            {% endfor %}
+        </select><br>
+        預約人：<input type="text" name="user" required><br>
+        取消密碼：<input type="password" name="cancel_code" required><br>
+        重複週數（可不填）：<input type="number" name="repeat_weeks"><br>
+        <button type="submit">預約</button>
+    </form>
+
+    <h3>目前預約：</h3>
+    <ul>
+    {% for b in bookings %}
+        <li>{{ b[1] }}｜{{ b[2] }} {{ b[3] }}~{{ b[4] }}｜{{ b[5] }}
+            {% if admin %}
+              <a href="/cancel/{{ b[0] }}">❌ 管理取消</a>
+            {% else %}
+              <a href="/cancel/{{ b[0] }}">取消</a>
+            {% endif %}
+        </li>
+    {% endfor %}
+    </ul>
+
+    <h3>歷史預約：</h3>
+    <ul>
+    {% for b in history %}
+        <li>{{ b[1] }}｜{{ b[2] }} {{ b[3] }}~{{ b[4] }}｜{{ b[5] }}</li>
+    {% endfor %}
+    </ul>
+
+    <hr>
+    {% if admin %}
+        <a href="/backup_db">📥 備份資料庫</a><br>
+        <a href="/restore_db">📤 還原資料庫</a><br>
+        <a href="/admin/logout">🚪 管理員登出</a>
+    {% else %}
+        <a href="/admin/login">🔐 管理員登入</a>
+    {% endif %}
+</body>
+</html>
