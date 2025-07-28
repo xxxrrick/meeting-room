@@ -26,42 +26,36 @@
     <form action="/book" method="POST">
         <label>會議室：</label>
         <select name="room">
-            <option value="Room A">Room A</option>
-            <option value="Room B">Room B</option>
+            <option value="R樓">R樓</option>
+            <option value="裕林">裕林</option>
         </select><br>
 
         <label>日期：</label>
         <input type="date" name="date" required><br>
 
-    <label>起始時間：</label>
-    <select name="start_time" required>
-      {% for h in range(0, 24) %}
-        {% for m in ['00', '30'] %}
-          <option value="{{ '%02d' % h }}:{{ m }}">{{ '%02d' % h }}:{{ m }}</option>
-        {% endfor %}
-      {% endfor %}
-    </select><br>
+        <label>起始時間：</label>
+        <select name="start_time" required>
+          {% for h in range(0, 24) %}
+            {% for m in ['00', '30'] %}
+              <option value="{{ '%02d' % h }}:{{ m }}" {% if h == 8 and m == '30' %}selected{% endif %}>{{ '%02d' % h }}:{{ m }}</option>
+            {% endfor %}
+          {% endfor %}
+        </select><br>
 
-    <label>結束時間：</label>
-    <select name="end_time" required>
-      {% for h in range(0, 24) %}
-        {% for m in ['00', '30'] %}
-          <option value="{{ '%02d' % h }}:{{ m }}">{{ '%02d' % h }}:{{ m }}</option>
-        {% endfor %}
-      {% endfor %}
-    </select><br>
-
-        <datalist id="minute-steps">
-            <option value="00:00">
-            <option value="00:10">
-            <option value="00:20">
-            <option value="00:30">
-            <option value="00:40">
-            <option value="00:50">
-        </datalist>
+        <label>結束時間：</label>
+        <select name="end_time" required>
+          {% for h in range(0, 24) %}
+            {% for m in ['00', '30'] %}
+              <option value="{{ '%02d' % h }}:{{ m }}" {% if h == 12 and m == '00' %}selected{% endif %}>{{ '%02d' % h }}:{{ m }}</option>
+            {% endfor %}
+          {% endfor %}
+        </select><br>
 
         <label>預約人：</label>
         <input type="text" name="user" required><br>
+
+        <label>取消密碼：</label>
+        <input type="password" name="cancel_password" required><br>
 
         <label>重複週數：</label>
         <input type="number" name="repeat_weeks" min="0" max="12" placeholder="可選填，如 3 表示重複 3 週"><br><br>
@@ -74,8 +68,18 @@
         {% for b in bookings %}
             <li>
                 🏠 <strong>{{ b[1] }}</strong> ｜ 📅 {{ b[2] }} ｜ 🕒 {{ b[3] }} ~ {{ b[4] }} ｜ 👤 {{ b[5] }}
-                <a href="/cancel/{{ b[0] }}" onclick="return confirm('確認取消這筆預約？')">❌ 取消</a>
+                <form action="/cancel/{{ b[0] }}" method="POST" style="display:inline;">
+                  <input type="password" name="cancel_password" placeholder="取消密碼" required>
+                  <button type="submit">❌ 取消</button>
+                </form>
             </li>
+        {% endfor %}
+    </ul>
+
+    <h2>📜 預約紀錄（已結束）</h2>
+    <ul>
+        {% for h in history %}
+            <li>✅ {{ h[1] }} ｜ {{ h[2] }} {{ h[3] }} ~ {{ h[4] }} ｜ 👤 {{ h[5] }}</li>
         {% endfor %}
     </ul>
 </body>
