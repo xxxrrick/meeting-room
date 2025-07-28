@@ -32,7 +32,11 @@ def book():
     end_time = request.form['end_time']
     user = request.form['user']
     repeat_weeks = request.form.get('repeat_weeks')
-
+    now = datetime.now()
+    start_dt = datetime.strptime(f"{date} {start_time}", "%Y-%m-%d %H:%M")
+    if start_dt < now:
+        flash("無法預約過去時間。", "error")
+        return redirect(url_for('index'))
     if start_time >= end_time:
         flash("起始時間必須早於結束時間。", "error")
         return redirect(url_for('index'))
