@@ -1,1 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>會議室預約系統</title>
+</head>
+<body>
+    <h1>會議室預約</h1>
+    <form action="/book" method="POST">
+        <label>會議室：</label>
+        <select name="room">
+            <option value="Room A">Room A</option>
+            <option value="Room B">Room B</option>
+        </select><br>
+        <label>日期：</label>
+        <input type="date" name="date" required><br>
+        <label>時間：</label>
+        <input type="time" name="time" required><br>
+        <label>預約人：</label>
+        <input type="text" name="user" required><br>
+        <button type="submit">預約</button>
+    </form>
 
+    <h2>預約列表</h2>
+    <ul>
+        {% for b in bookings %}
+            <li>{{ b[1] }} - {{ b[2] }} {{ b[3] }} by {{ b[4] }}</li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
