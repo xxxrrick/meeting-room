@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 app = Flask(__name__)
 app.secret_key = 'your-secret-key'
 
-ADMIN_USER = 'admin'
 ADMIN_PASS = '0000'
 
 # 初始化資料庫
@@ -111,13 +110,12 @@ def cancel(id):
 def admin_login():
     global ADMIN_PASS
     if request.method == 'POST':
-        if request.form['username'] == ADMIN_USER and request.form['password'] == ADMIN_PASS:
+        if request.form['password'] == ADMIN_PASS:
             session['admin'] = True
             flash("登入成功", "success")
             return redirect(url_for('index'))
         flash("登入失敗", "error")
     return '''<form method="POST">
-        管理員帳號：<input name="username"><br>
         密碼：<input name="password" type="password"><br>
         <button type="submit">登入</button>
     </form><br><a href='/'>返回首頁</a>'''
@@ -156,7 +154,7 @@ def change_admin_password():
         else:
             ADMIN_PASS = new1
             flash("密碼已成功更新！", "success")
-            return redirect(url_for('admin_panel'))
+            return redirect(url_for('index'))
 
     return '''<form method="POST">
         目前密碼：<input type="password" name="current_password"><br>
