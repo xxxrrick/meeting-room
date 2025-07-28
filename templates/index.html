@@ -26,18 +26,23 @@
             <option>裕林</option>
         </select><br>
         日期：<input type="date" name="date" required><br>
-        起始時間：<select name="start_time">
+
+        起始時間：
+        <select name="start_time">
             {% for h in range(0,24) %}
-              <option>{{ '%02d' % h }}:30</option>
-              <option>{{ '%02d' % h }}:00</option>
+              <option value="{{'%02d' % h}}:00" {% if h == 8 %}selected{% endif %}>{{'%02d' % h}}:00</option>
+              <option value="{{'%02d' % h}}:30" {% if h == 8 %}selected{% endif %}>{{'%02d' % h}}:30</option>
             {% endfor %}
         </select><br>
-        結束時間：<select name="end_time">
+
+        結束時間：
+        <select name="end_time">
             {% for h in range(0,24) %}
-              <option>{{ '%02d' % h }}:30</option>
-              <option>{{ '%02d' % h }}:00</option>
+              <option value="{{'%02d' % h}}:00" {% if h == 12 %}selected{% endif %}>{{'%02d' % h}}:00</option>
+              <option value="{{'%02d' % h}}:30" {% if h == 12 %}selected{% endif %}>{{'%02d' % h}}:30</option>
             {% endfor %}
         </select><br>
+
         預約人：<input type="text" name="user" required><br>
         取消密碼：<input type="password" name="cancel_code" required><br>
         重複週數（可不填）：<input type="number" name="repeat_weeks"><br>
