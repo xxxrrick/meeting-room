@@ -36,7 +36,7 @@
     <label>起始時間：</label>
     <select name="start_time" required>
       {% for h in range(0, 24) %}
-        {% for m in ['00', '10', '20', '30', '40', '50'] %}
+        {% for m in ['00', '30'] %}
           <option value="{{ '%02d' % h }}:{{ m }}">{{ '%02d' % h }}:{{ m }}</option>
         {% endfor %}
       {% endfor %}
@@ -45,7 +45,7 @@
     <label>結束時間：</label>
     <select name="end_time" required>
       {% for h in range(0, 24) %}
-        {% for m in ['00', '10', '20', '30', '40', '50'] %}
+        {% for m in ['00', '30'] %}
           <option value="{{ '%02d' % h }}:{{ m }}">{{ '%02d' % h }}:{{ m }}</option>
         {% endfor %}
       {% endfor %}
