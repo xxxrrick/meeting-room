@@ -1,86 +1,139 @@
-<!DOCTYPE html>
-<html lang="zh">
-<head>
-    <meta charset="UTF-8">
-    <title>會議室預約系統</title>
-    <style>
-        body { font-family: sans-serif; line-height: 1.6; padding: 20px; }
-        label { display: inline-block; width: 120px; vertical-align: top; }
-        input, select { margin-bottom: 8px; }
-        .message { padding: 8px; margin: 8px 0; border-radius: 4px; }
-        .success { background: #d4edda; color: #155724; }
-        .error-message { background: #f8d7da; color: #721c24; }
-    </style>
-</head>
-<body>
-    <h1>會議室預約</h1>
+from flask import Flask, render_template, request, redirect, url_for, flash, session
+import sqlite3
+from datetime import datetime, timedelta
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-          <div class="message {{ 'success' if category == 'success' else 'error-message' }}">{{ message }}</div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
+app = Flask(__name__)
+app.secret_key = 'your-secret-key'
 
-    <form action="/book" method="POST">
-        <label>會議室：</label>
-        <select name="room">
-            <option value="R樓">R樓</option>
-            <option value="裕林">裕林</option>
-        </select><br>
+ADMIN_USER = 'admin'
+ADMIN_PASS = '1234'
 
-        <label>日期：</label>
-        <input type="date" name="date" required><br>
+# 初始化資料庫
+def init_db():
+    with sqlite3.connect("database.db") as conn:
+        conn.execute('''CREATE TABLE IF NOT EXISTS bookings (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            room TEXT NOT NULL,
+                            date TEXT NOT NULL,
+                            start_time TEXT NOT NULL,
+                            end_time TEXT NOT NULL,
+                            user TEXT NOT NULL,
+                            cancel_password TEXT NOT NULL
+                        );''')
+init_db()
 
-        <label>起始時間：</label>
-        <select name="start_time" required>
-          {% for h in range(0, 24) %}
-            {% for m in ['00', '30'] %}
-              <option value="{{ '%02d' % h }}:{{ m }}" {% if h == 8 and m == '30' %}selected{% endif %}>{{ '%02d' % h }}:{{ m }}</option>
-            {% endfor %}
-          {% endfor %}
-        </select><br>
+@app.route('/')
+def index():
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+    with sqlite3.connect("database.db") as conn:
+        all_bookings = conn.execute("SELECT * FROM bookings ORDER BY date, start_time").fetchall()
 
-        <label>結束時間：</label>
-        <select name="end_time" required>
-          {% for h in range(0, 24) %}
-            {% for m in ['00', '30'] %}
-              <option value="{{ '%02d' % h }}:{{ m }}" {% if h == 12 and m == '00' %}selected{% endif %}>{{ '%02d' % h }}:{{ m }}</option>
-            {% endfor %}
-          {% endfor %}
-        </select><br>
+    bookings = []
+    history = []
+    for b in all_bookings:
+        end_dt_str = f"{b[2]} {b[4]}"
+        if end_dt_str >= now_str:
+            bookings.append(b)
+        else:
+            history.append(b)
+    return render_template("index.html", bookings=bookings, history=history)
 
-        <label>預約人：</label>
-        <input type="text" name="user" required><br>
+@app.route('/book', methods=['POST'])
+def book():
+    room = request.form['room']
+    date = request.form['date']
+    start_time = request.form['start_time']
+    end_time = request.form['end_time']
+    user = request.form['user']
+    cancel_password = request.form['cancel_password']
+    repeat_weeks = request.form.get('repeat_weeks')
 
-        <label>取消密碼：</label>
-        <input type="password" name="cancel_password" required><br>
+    now = datetime.now()
+    start_dt = datetime.strptime(f"{date} {start_time}", "%Y-%m-%d %H:%M")
+    if start_dt < now:
+        flash("無法預約過去時間。", "error")
+        return redirect(url_for('index'))
+    if start_time >= end_time:
+        flash("起始時間必須早於結束時間。", "error")
+        return redirect(url_for('index'))
 
-        <label>重複週數：</label>
-        <input type="number" name="repeat_weeks" min="0" max="12" placeholder="可選填，如 3 表示重複 3 週"><br><br>
+    def insert_booking(d):
+        with sqlite3.connect("database.db") as conn:
+            cursor = conn.cursor()
+            conflict = cursor.execute('''SELECT * FROM bookings WHERE room=? AND date=?
+                                         AND ((start_time < ? AND end_time > ?) OR
+                                              (start_time < ? AND end_time > ?) OR
+                                              (start_time >= ? AND start_time < ?))''',
+                                       (room, d, end_time, end_time, start_time, start_time, start_time, end_time)).fetchone()
+            if conflict:
+                return False
+            cursor.execute("INSERT INTO bookings (room, date, start_time, end_time, user, cancel_password) VALUES (?, ?, ?, ?, ?, ?)",
+                           (room, d, start_time, end_time, user, cancel_password))
+            conn.commit()
+            return True
 
-        <button type="submit">✅ 預約</button>
-    </form>
+    success = insert_booking(date)
+    if not success:
+        flash("此時段已被預約，請選擇其他時間。", "error")
+        return redirect(url_for('index'))
 
-    <h2>📋 預約列表</h2>
-    <ul>
-        {% for b in bookings %}
-            <li>
-                🏠 <strong>{{ b[1] }}</strong> ｜ 📅 {{ b[2] }} ｜ 🕒 {{ b[3] }} ~ {{ b[4] }} ｜ 👤 {{ b[5] }}
-                <form action="/cancel/{{ b[0] }}" method="POST" style="display:inline;">
-                  <input type="password" name="cancel_password" placeholder="取消密碼" required>
-                  <button type="submit">❌ 取消</button>
-                </form>
-            </li>
-        {% endfor %}
-    </ul>
+    if repeat_weeks and repeat_weeks.isdigit():
+        base_date = datetime.strptime(date, "%Y-%m-%d")
+        for i in range(1, int(repeat_weeks)):
+            next_date = (base_date + timedelta(weeks=i)).strftime("%Y-%m-%d")
+            insert_booking(next_date)
 
-    <h2>📜 預約紀錄（已結束）</h2>
-    <ul>
-        {% for h in history %}
-            <li>✅ {{ h[1] }} ｜ {{ h[2] }} {{ h[3] }} ~ {{ h[4] }} ｜ 👤 {{ h[5] }}</li>
-        {% endfor %}
-    </ul>
-</body>
-</html>
+    flash("預約成功！", "success")
+    return redirect(url_for('index'))
+
+@app.route('/cancel/<int:id>', methods=['POST'])
+def cancel(id):
+    password = request.form.get('cancel_password')
+    with sqlite3.connect("database.db") as conn:
+        cursor = conn.cursor()
+        row = cursor.execute("SELECT cancel_password FROM bookings WHERE id=?", (id,)).fetchone()
+        if row and row[0] == password:
+            cursor.execute("DELETE FROM bookings WHERE id=?", (id,))
+            conn.commit()
+            flash("已成功取消預約", "success")
+        else:
+            flash("密碼錯誤，無法取消預約", "error")
+    return redirect(url_for('index'))
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        if request.form['username'] == ADMIN_USER and request.form['password'] == ADMIN_PASS:
+            session['admin'] = True
+            return redirect(url_for('admin_panel'))
+        flash("登入失敗", "error")
+    return '''<form method="POST">
+        管理員帳號：<input name="username"><br>
+        密碼：<input name="password" type="password"><br>
+        <button type="submit">登入</button>
+    </form>'''
+
+@app.route('/admin')
+def admin_panel():
+    if not session.get('admin'):
+        return redirect(url_for('admin_login'))
+    with sqlite3.connect("database.db") as conn:
+        bookings = conn.execute("SELECT * FROM bookings ORDER BY date, start_time").fetchall()
+    out = "<h2>管理員後台</h2><ul>"
+    for b in bookings:
+        out += f"<li>{b[1]} | {b[2]} {b[3]}~{b[4]} by {b[5]} <a href='/force_cancel/{b[0]}'>[強制取消]</a></li>"
+    out += "</ul>"
+    return out
+
+@app.route('/force_cancel/<int:id>')
+def force_cancel(id):
+    if not session.get('admin'):
+        return redirect(url_for('admin_login'))
+    with sqlite3.connect("database.db") as conn:
+        conn.execute("DELETE FROM bookings WHERE id=?", (id,))
+        conn.commit()
+    flash("管理員已取消預約", "success")
+    return redirect(url_for('admin_panel'))
+
+if __name__ == '__main__':
+    app.run(debug=True)
