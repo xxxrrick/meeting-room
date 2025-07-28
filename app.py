@@ -120,6 +120,12 @@ def admin_login():
         <button type="submit">登入</button>
     </form><br><a href='/'>返回首頁</a>'''
 
+@app.route('/admin/logout')
+def admin_logout():
+    session.pop('admin', None)
+    flash("已登出管理員身份。", "success")
+    return redirect(url_for('index'))
+
 @app.route('/admin')
 def admin_panel():
     if not session.get('admin'):
@@ -131,6 +137,7 @@ def admin_panel():
         out += f"<li>{b[1]} | {b[2]} {b[3]}~{b[4]} by {b[5]} <a href='/force_cancel/{b[0]}'>[強制取消]</a></li>"
     out += "</ul>"
     out += "<br><a href='/admin/change_password'>🔒 更改管理員密碼</a>"
+    out += "<br><a href='/admin/logout'>🚪 登出</a>"
     out += "<br><a href='/'>返回首頁</a>"
     return out
 
