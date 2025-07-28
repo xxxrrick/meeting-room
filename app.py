@@ -3,7 +3,7 @@ import sqlite3
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key'  # 用於 flash 訊息
+app.secret_key = 'your-secret-key'
 
 # 初始化資料庫
 def init_db():
@@ -33,7 +33,6 @@ def book():
     user = request.form['user']
     repeat_weeks = request.form.get('repeat_weeks')
 
-    # 檢查時間順序
     if start_time >= end_time:
         flash("起始時間必須早於結束時間。", "error")
         return redirect(url_for('index'))
@@ -72,7 +71,7 @@ def cancel(id):
     with sqlite3.connect("database.db") as conn:
         conn.execute("DELETE FROM bookings WHERE id=?", (id,))
         conn.commit()
-    flash("已取消預約。", "info")
+    flash("已取消預約。", "success")
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
