@@ -3,6 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <title>會議室預約系統</title>
+    <style>
+        body { font-family: sans-serif; line-height: 1.6; padding: 20px; }
+        label { display: inline-block; width: 100px; }
+        form, ul { margin-bottom: 20px; }
+        li { margin: 5px 0; }
+    </style>
 </head>
 <body>
     <h1>會議室預約</h1>
@@ -12,24 +18,31 @@
             <option value="Room A">Room A</option>
             <option value="Room B">Room B</option>
         </select><br>
+
         <label>日期：</label>
         <input type="date" name="date" required><br>
+
         <label>起始時間：</label>
-        <input type="time" name="start_time" required><br>
+        <input type="time" name="start_time" step="600" required><br>
+
         <label>結束時間：</label>
-        <input type="time" name="end_time" required><br>
+        <input type="time" name="end_time" step="600" required><br>
+
         <label>預約人：</label>
         <input type="text" name="user" required><br>
-        <label><input type="checkbox" name="repeat"> 每週重複 3 週</label><br>
-        <button type="submit">預約</button>
+
+        <label>重複週數：</label>
+        <input type="number" name="repeat_weeks" min="0" max="12" placeholder="可選填，如 3 表示重複 3 週"><br><br>
+
+        <button type="submit">✅ 預約</button>
     </form>
 
-    <h2>預約列表</h2>
+    <h2>📋 預約列表</h2>
     <ul>
         {% for b in bookings %}
             <li>
-                {{ b[1] }} - {{ b[2] }} {{ b[3] }}~{{ b[4] }} by {{ b[5] }}
-                <a href="/cancel/{{ b[0] }}" onclick="return confirm('確認取消？')">❌ 取消</a>
+                🏠 <strong>{{ b[1] }}</strong> ｜ 📅 {{ b[2] }} ｜ 🕒 {{ b[3] }} ~ {{ b[4] }} ｜ 👤 {{ b[5] }}
+                <a href="/cancel/{{ b[0] }}" onclick="return confirm('確認取消這筆預約？')">❌ 取消</a>
             </li>
         {% endfor %}
     </ul>
