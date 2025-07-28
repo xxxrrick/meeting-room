@@ -30,16 +30,20 @@ def book():
     start_time = request.form['start_time']
     end_time = request.form['end_time']
     user = request.form['user']
-    repeat = request.form.get('repeat')  # optional
+    repeat_weeks = request.form.get('repeat_weeks')
+
+    # 檢查時間順序
+    if start_time >= end_time:
+        return "❌ 起始時間必須早於結束時間。"
 
     def insert_booking(d):
         with sqlite3.connect("database.db") as conn:
             cursor = conn.cursor()
-            # 檢查是否重疊
+            # 檢查時間重疊
             conflict = cursor.execute('''SELECT * FROM bookings WHERE room=? AND date=?
-                                         AND ((start_time<? AND end_time>?) OR
-                                              (start_time<? AND end_time>?) OR
-                                              (start_time>=? AND start_time<?))''',
+                                         AND ((start_time < ? AND end_time > ?) OR
+                                              (start_time < ? AND end_time > ?) OR
+                                              (start_time >= ? AND start_time < ?))''',
                                        (room, d, end_time, end_time, start_time, start_time, start_time, end_time)).fetchone()
             if conflict:
                 return False
@@ -50,12 +54,12 @@ def book():
 
     success = insert_booking(date)
     if not success:
-        return "❌ 此時段已有預約，請返回選其他時間。"
+        return "❌ 此時段已被預約，請選擇其他時間。"
 
-    # 處理週期性預約：重複 4 次（未來 4 週）
-    if repeat == "on":
+    # 處理週期性預約
+    if repeat_weeks and repeat_weeks.isdigit():
         base_date = datetime.strptime(date, "%Y-%m-%d")
-        for i in range(1, 4):
+        for i in range(1, int(repeat_weeks)):
             next_date = (base_date + timedelta(weeks=i)).strftime("%Y-%m-%d")
             insert_booking(next_date)
 
