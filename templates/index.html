@@ -68,19 +68,30 @@
         {% for b in bookings %}
             <li>
                 🏠 <strong>{{ b[1] }}</strong> ｜ 📅 {{ b[2] }} ｜ 🕒 {{ b[3] }} ~ {{ b[4] }} ｜ 👤 {{ b[5] }}
-                <form action="/cancel/{{ b[0] }}" method="POST" style="display:inline;">
-                  <input type="password" name="cancel_password" placeholder="取消密碼" required>
-                  <button type="submit">❌ 取消</button>
-                </form>
+                {% if admin %}
+                    <form action="/cancel/{{ b[0] }}" method="POST" style="display:inline;"><button>❌ 管理員取消</button></form>
+                {% else %}
+                    <form action="/cancel/{{ b[0] }}" method="POST" style="display:inline;">
+                        密碼：<input name="cancel_password" type="password" required>
+                        <button>❌ 取消</button>
+                    </form>
+                {% endif %}
             </li>
         {% endfor %}
     </ul>
 
-    <h2>📜 預約紀錄（已結束）</h2>
+    <h3>🕓 歷史預約紀錄</h3>
     <ul>
-        {% for h in history %}
-            <li>✅ {{ h[1] }} ｜ {{ h[2] }} {{ h[3] }} ~ {{ h[4] }} ｜ 👤 {{ h[5] }}</li>
+        {% for b in history %}
+            <li>🏠 {{ b[1] }} ｜ 📅 {{ b[2] }} ｜ 🕒 {{ b[3] }} ~ {{ b[4] }} ｜ 👤 {{ b[5] }}</li>
         {% endfor %}
     </ul>
+
+    <br>
+    {% if not admin %}
+      <a href="/admin/login">🔐 管理員登入</a>
+    {% else %}
+      <a href="/admin">📂 管理員後台</a>
+    {% endif %}
 </body>
 </html>
