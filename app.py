@@ -6,7 +6,7 @@ app = Flask(__name__)
 app.secret_key = 'your-secret-key'
 
 ADMIN_USER = 'admin'
-ADMIN_PASS = '1234'
+ADMIN_PASS = '0000'
 
 # 初始化資料庫
 def init_db():
@@ -36,7 +36,7 @@ def index():
             bookings.append(b)
         else:
             history.append(b)
-    return render_template("index.html", bookings=bookings, history=history)
+    return render_template("index.html", bookings=bookings, history=history, admin=session.get('admin'))
 
 @app.route('/book', methods=['POST'])
 def book():
@@ -88,6 +88,13 @@ def book():
 
 @app.route('/cancel/<int:id>', methods=['POST'])
 def cancel(id):
+    if session.get('admin'):
+        with sqlite3.connect("database.db") as conn:
+            conn.execute("DELETE FROM bookings WHERE id=?", (id,))
+            conn.commit()
+        flash("已由管理員取消預約", "success")
+        return redirect(url_for('index'))
+
     password = request.form.get('cancel_password')
     with sqlite3.connect("database.db") as conn:
         cursor = conn.cursor()
@@ -102,16 +109,18 @@ def cancel(id):
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
+    global ADMIN_PASS
     if request.method == 'POST':
         if request.form['username'] == ADMIN_USER and request.form['password'] == ADMIN_PASS:
             session['admin'] = True
-            return redirect(url_for('admin_panel'))
+            flash("登入成功", "success")
+            return redirect(url_for('index'))
         flash("登入失敗", "error")
     return '''<form method="POST">
         管理員帳號：<input name="username"><br>
         密碼：<input name="password" type="password"><br>
         <button type="submit">登入</button>
-    </form>'''
+    </form><br><a href='/'>返回首頁</a>'''
 
 @app.route('/admin')
 def admin_panel():
@@ -123,7 +132,38 @@ def admin_panel():
     for b in bookings:
         out += f"<li>{b[1]} | {b[2]} {b[3]}~{b[4]} by {b[5]} <a href='/force_cancel/{b[0]}'>[強制取消]</a></li>"
     out += "</ul>"
+    out += "<br><a href='/admin/change_password'>🔒 更改管理員密碼</a>"
+    out += "<br><a href='/'>返回首頁</a>"
     return out
+
+@app.route('/admin/change_password', methods=['GET', 'POST'])
+def change_admin_password():
+    global ADMIN_PASS
+    if not session.get('admin'):
+        return redirect(url_for('admin_login'))
+
+    if request.method == 'POST':
+        current = request.form['current_password']
+        new1 = request.form['new_password']
+        new2 = request.form['confirm_password']
+
+        if current != ADMIN_PASS:
+            flash("目前密碼錯誤", "error")
+        elif new1 != new2:
+            flash("兩次輸入的新密碼不一致", "error")
+        elif not new1:
+            flash("新密碼不能為空", "error")
+        else:
+            ADMIN_PASS = new1
+            flash("密碼已成功更新！", "success")
+            return redirect(url_for('admin_panel'))
+
+    return '''<form method="POST">
+        目前密碼：<input type="password" name="current_password"><br>
+        新密碼：<input type="password" name="new_password"><br>
+        確認新密碼：<input type="password" name="confirm_password"><br>
+        <button type="submit">更改密碼</button>
+    </form><br><a href='/'>返回首頁</a>'''
 
 @app.route('/force_cancel/<int:id>')
 def force_cancel(id):
