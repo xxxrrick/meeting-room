@@ -14,17 +14,23 @@
         </select><br>
         <label>日期：</label>
         <input type="date" name="date" required><br>
-        <label>時間：</label>
-        <input type="time" name="time" required><br>
+        <label>起始時間：</label>
+        <input type="time" name="start_time" required><br>
+        <label>結束時間：</label>
+        <input type="time" name="end_time" required><br>
         <label>預約人：</label>
         <input type="text" name="user" required><br>
+        <label><input type="checkbox" name="repeat"> 每週重複 3 週</label><br>
         <button type="submit">預約</button>
     </form>
 
     <h2>預約列表</h2>
     <ul>
         {% for b in bookings %}
-            <li>{{ b[1] }} - {{ b[2] }} {{ b[3] }} by {{ b[4] }}</li>
+            <li>
+                {{ b[1] }} - {{ b[2] }} {{ b[3] }}~{{ b[4] }} by {{ b[5] }}
+                <a href="/cancel/{{ b[0] }}" onclick="return confirm('確認取消？')">❌ 取消</a>
+            </li>
         {% endfor %}
     </ul>
 </body>
