@@ -1,7 +1,71 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
-import os, time, shutil
+import os
+import shutil
+import time
 import sqlite3
-from datetime import datetime, timedelta
+import requests
+from datetime import datetime
+from threading import Thread
+
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
+app = Flask(__name__)
+app.secret_key = 'your-secret-key'
+
+# === 常數設定 ===
+RENDER_URL = "https://your-app.onrender.com"
+DB_PATH = "data/database.db"
+BACKUP_FOLDER = "backups"
+DRIVE_API_TRIGGER_URL = "https://your-api-endpoint/upload"
+
+os.makedirs("data", exist_ok=True)
+os.makedirs(BACKUP_FOLDER, exist_ok=True)
+
+def ping_render():
+    try:
+        requests.get(RENDER_URL, timeout=5)
+    except:
+        pass
+
+def restore_if_needed():
+    def is_empty(db_file):
+        try:
+            with sqlite3.connect(db_file) as conn:
+                cur = conn.cursor()
+                cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
+                tables = cur.fetchall()
+                for table in tables:
+                    if cur.execute(f"SELECT COUNT(*) FROM {table[0]}").fetchone()[0] > 0:
+                        return False
+                return True
+        except:
+            return True
+
+    if not os.path.exists(DB_PATH) or is_empty(DB_PATH):
+        backups = sorted([f for f in os.listdir(BACKUP_FOLDER) if f.endswith(".db")], reverse=True)
+        if backups:
+            latest = os.path.join(BACKUP_FOLDER, backups[0])
+            shutil.copyfile(latest, DB_PATH)
+
+def backup_and_upload():
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    backup_path = os.path.join(BACKUP_FOLDER, f"backup_{timestamp}.db")
+    shutil.copyfile(DB_PATH, backup_path)
+    try:
+        requests.post(DRIVE_API_TRIGGER_URL, json={"filename": backup_path})
+    except:
+        pass
+
+def initialize_system():
+    Thread(target=ping_render).start()
+    restore_if_needed()
+
+def on_user_action():
+    Thread(target=backup_and_upload).start()
+
+# 初始化時呼叫
+initialize_system()
+
+# 其餘 Flask 路由定義繼續...
+
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key'
