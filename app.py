@@ -17,16 +17,15 @@ def get_root_folder():
         print("❌ 無法取得 rootFolder：", str(e))
         return None
 def restore_latest_from_gofile():
-    folder_id = GOFILE_PARENT_FOLDER or get_root_folder()
-    payload = {"token": GOFILE_TOKEN, "folderId": folder_id}
     try:
-        print("📥 正在取得 GoFile 備份清單，token=", GOFILE_TOKEN)
+        folder_id = GOFILE_PARENT_FOLDER or get_root_folder()
         payload = {"token": GOFILE_TOKEN}
-        if GOFILE_PARENT_FOLDER:
-            payload["folderId"] = GOFILE_PARENT_FOLDER
+        if folder_id:
+            payload["folderId"] = folder_id
 
+        print("📥 正在取得 GoFile 備份清單，token=", GOFILE_TOKEN)
         res = requests.get("https://api.gofile.io/getContent", params=payload)
-        
+
         print("🌐 GoFile 回應狀態碼：", res.status_code)
         print("🌐 GoFile 回應內容：", res.text[:500])  # 印前500字避免爆量
 
