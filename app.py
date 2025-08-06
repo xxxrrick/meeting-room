@@ -15,15 +15,13 @@ def backup_to_gofile(filepath):
         server_res = requests.get("https://api.gofile.io/getServer")
         server = server_res.json()["data"]["server"]
 
-        # Step 2: 上傳檔案到該伺服器
+        # Step 2: 上傳檔案到該伺服器（記得加上 token）
         with open(filepath, 'rb') as f:
             upload_url = f"https://{server}.gofile.io/uploadFile"
-            res = requests.post(upload_url, files={'file': f})
-            
-            # 新增：顯示實際回傳的內容
-            print("📦 GoFile 回應內容：", res.text)
+            res = requests.post(upload_url, data={"token": GOFILE_TOKEN}, files={'file': f})
 
-            # 嘗試轉換 JSON
+            print("📦 GoFile 回應內容：", res.text)  # Debug
+
             result = res.json()
 
         if result["status"] == "ok":
