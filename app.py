@@ -19,6 +19,11 @@ def backup_to_gofile(filepath):
         with open(filepath, 'rb') as f:
             upload_url = f"https://{server}.gofile.io/uploadFile"
             res = requests.post(upload_url, files={'file': f})
+            
+            # 新增：顯示實際回傳的內容
+            print("📦 GoFile 回應內容：", res.text)
+
+            # 嘗試轉換 JSON
             result = res.json()
 
         if result["status"] == "ok":
