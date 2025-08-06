@@ -8,7 +8,17 @@ from threading import Thread
 from datetime import timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
 import os
+def get_root_folder():
+    try:
+        res = requests.get("https://api.gofile.io/getAccountDetails", params={"token": GOFILE_TOKEN})
+        res.raise_for_status()
+        return res.json()["data"]["rootFolder"]
+    except Exception as e:
+        print("❌ 無法取得 rootFolder：", str(e))
+        return None
 def restore_latest_from_gofile():
+    folder_id = GOFILE_PARENT_FOLDER or get_root_folder()
+    payload = {"token": GOFILE_TOKEN, "folderId": folder_id}
     try:
         print("📥 正在取得 GoFile 備份清單，token=", GOFILE_TOKEN)
         payload = {"token": GOFILE_TOKEN}
