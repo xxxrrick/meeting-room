@@ -87,18 +87,7 @@ DRIVE_API_TRIGGER_URL = "https://your-api-endpoint/upload"
 
 os.makedirs("data", exist_ok=True)
 os.makedirs(BACKUP_FOLDER, exist_ok=True)
-def restore_from_gofile(download_url):
-    try:
-        # 從 GoFile 下載最新的 .db 檔案
-        response = requests.get(download_url, stream=True)
-        if response.status_code == 200:
-            with open(DB_PATH, 'wb') as f:
-                shutil.copyfileobj(response.raw, f)
-            print("✅ 已成功從 GoFile 還原資料庫")
-        else:
-            print("❌ 無法下載 GoFile 備份，狀態碼：", response.status_code)
-    except Exception as e:
-        print("❌ 錯誤發生於 GoFile 還原：", str(e))
+
 
 def backup_and_upload_overwrite():
     os.makedirs(BACKUP_FOLDER, exist_ok=True)
@@ -151,11 +140,11 @@ def restore_if_needed():
 
 
 def initialize_system():
-    Thread(target=ping_render).start()
-
-    # 🚨 永遠從 GoFile 還原
-    print("🔁 嘗試從 GoFile 還原最新資料庫")
-    restore_latest_from_gofile()
+    print("🔁 [Init] 系統初始化中，嘗試還原 GoFile 備份...")
+    try:
+        restore_latest_from_gofile()
+    except Exception as e:
+        print("❌ [Init] 還原發生錯誤：", str(e))
 
 
 def on_user_action():
@@ -334,7 +323,13 @@ def restore_db():
             <button type="submit">還原</button>
         </form><br><a href="/">⬅ 回主頁</a>
     '''
-
+@app.route('/force_restore')
+def force_restore():
+    try:
+        restore_latest_from_gofile()
+        return "✅ 強制還原完成"
+    except Exception as e:
+        return f"❌ 強制還原失敗：{str(e)}"
 if __name__ == '__main__':
     initialize_system()
     app.run(debug=True)
