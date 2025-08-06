@@ -43,30 +43,32 @@ GOFILE_PARENT_FOLDER = None  # 如果你有特定上傳目錄ID可以填入，�
 
 def restore_latest_from_gofile():
     try:
-        # Step 1: 取得帳戶檔案清單
         payload = {"token": GOFILE_TOKEN}
         if GOFILE_PARENT_FOLDER:
             payload["folderId"] = GOFILE_PARENT_FOLDER
 
         res = requests.get("https://api.gofile.io/getContent", params=payload)
-        files = res.json()["data"]["contents"]
+        data = res.json()
 
-        # Step 2: 篩選所有 .db 檔案，取最新
+        if data["status"] != "ok" or "contents" not in data["data"]:
+            print("❌ 無法取得 GoFile 檔案清單")
+            print("回傳內容：", data)
+            return
+
+        contents = data["data"]["contents"]
         db_files = []
-        for file_id, info in files.items():
-            if info["name"].endswith(".db"):
+        for file_id, info in contents.items():
+            if info["name"].endswith(".db") and "directLink" in info:
                 db_files.append((info["name"], info["directLink"]))
 
         if not db_files:
-            print("❌ GoFile 中沒有找到 .db 備份檔")
+            print("❌ GoFile 中找不到備份檔")
             return
 
-        # Step 3: 根據檔名排序（假設檔名含 timestamp），選擇最新
         db_files.sort(reverse=True)
         latest_name, latest_url = db_files[0]
         print(f"🕓 正在還原 GoFile 最新備份：{latest_name}")
 
-        # Step 4: 下載還原
         response = requests.get(latest_url, stream=True)
         if response.status_code == 200:
             with open(DB_PATH, 'wb') as f:
@@ -74,6 +76,7 @@ def restore_latest_from_gofile():
             print("✅ 成功還原 GoFile 備份：", latest_name)
         else:
             print("❌ 無法下載備份檔案：", response.status_code)
+
     except Exception as e:
         print("❌ 自動還原 GoFile 備份錯誤：", str(e))
 # === 常數設定 ===
