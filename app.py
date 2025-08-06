@@ -11,15 +11,17 @@ import os
 
 def backup_to_gofile(filepath):
     try:
-        # Step 1: 取得最佳上傳伺服器
-        server_res = requests.get("https://api.gofile.io/getServer")
+        # 取得上傳伺服器
+        server_res = requests.get("https://api.gofile.io/servers")
         server_res.raise_for_status()
         server = server_res.json()["data"]["server"]
 
-        # Step 2: 上傳檔案到該伺服器
+        # 上傳檔案
         with open(filepath, 'rb') as f:
             upload_url = f"https://{server}.gofile.io/uploadFile"
             res = requests.post(upload_url, files={'file': f})
+            res.raise_for_status()  # 新增這行以捕捉錯誤狀態
+
             try:
                 result = res.json()
             except Exception as e:
@@ -33,6 +35,7 @@ def backup_to_gofile(filepath):
         else:
             print("❌ 上傳失敗（API 回應錯誤）：", result)
             return None
+
     except Exception as e:
         print("❌ 上傳過程出錯：", str(e))
         return None
