@@ -11,29 +11,25 @@ import os
 
 def backup_to_gofile(filepath):
     try:
-        # 取得上傳伺服器
+        # Step 1: 取得伺服器清單
         server_res = requests.get("https://api.gofile.io/servers")
         server_res.raise_for_status()
-        server = server_res.json()["data"]["server"]
+        servers = server_res.json()["data"]["servers"]
+        server = list(servers.values())[0]["server"]  # 取第一個伺服器
 
-        # 上傳檔案
+        # Step 2: 上傳檔案
         with open(filepath, 'rb') as f:
             upload_url = f"https://{server}.gofile.io/uploadFile"
             res = requests.post(upload_url, files={'file': f})
-            res.raise_for_status()  # 新增這行以捕捉錯誤狀態
-
-            try:
-                result = res.json()
-            except Exception as e:
-                print("❌ 無法解析回應內容：", res.status_code, res.text)
-                return None
+            res.raise_for_status()
+            result = res.json()
 
         if result["status"] == "ok":
             link = result["data"]["downloadPage"]
             print("✅ 備份成功，下載連結：", link)
             return link
         else:
-            print("❌ 上傳失敗（API 回應錯誤）：", result)
+            print("❌ 上傳失敗：", result)
             return None
 
     except Exception as e:
