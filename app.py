@@ -13,27 +13,30 @@ def backup_to_gofile(filepath):
     try:
         # Step 1: 取得最佳上傳伺服器
         server_res = requests.get("https://api.gofile.io/getServer")
+        server_res.raise_for_status()
         server = server_res.json()["data"]["server"]
 
-        # Step 2: 上傳檔案到該伺服器（記得加上 token）
+        # Step 2: 上傳檔案到該伺服器
         with open(filepath, 'rb') as f:
             upload_url = f"https://{server}.gofile.io/uploadFile"
-            res = requests.post(upload_url, data={"token": GOFILE_TOKEN}, files={'file': f})
-
-            print("📦 GoFile 回應內容：", res.text)  # Debug
-
-            result = res.json()
+            res = requests.post(upload_url, files={'file': f})
+            try:
+                result = res.json()
+            except Exception as e:
+                print("❌ 無法解析回應內容：", res.status_code, res.text)
+                return None
 
         if result["status"] == "ok":
             link = result["data"]["downloadPage"]
             print("✅ 備份成功，下載連結：", link)
             return link
         else:
-            print("❌ 上傳失敗：", result)
+            print("❌ 上傳失敗（API 回應錯誤）：", result)
             return None
     except Exception as e:
-        print("❌ 上傳過程出錯：", e)
+        print("❌ 上傳過程出錯：", str(e))
         return None
+
 app = Flask(__name__)
 app.secret_key = 'your-secret-key'
 GOFILE_TOKEN = "RjLjWdXaDBBw4uhiOKQhDeOevHyyYvm2"  # ← 請替換為你的 GoFile API token
