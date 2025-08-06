@@ -8,7 +8,12 @@ from threading import Thread
 from datetime import timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
 import os
-
+def initialize_system():
+    print("🔁 [Init] 系統初始化中，嘗試還原 GoFile 備份...")
+    try:
+        restore_latest_from_gofile()
+    except Exception as e:
+        print("❌ [Init] 還原發生錯誤：", str(e))
 def backup_to_gofile(filepath):
     try:
         server_res = requests.get("https://api.gofile.io/servers")
@@ -139,12 +144,7 @@ def restore_if_needed():
             shutil.copyfile(latest, DB_PATH)
 
 
-def initialize_system():
-    print("🔁 [Init] 系統初始化中，嘗試還原 GoFile 備份...")
-    try:
-        restore_latest_from_gofile()
-    except Exception as e:
-        print("❌ [Init] 還原發生錯誤：", str(e))
+
 
 
 def on_user_action():
