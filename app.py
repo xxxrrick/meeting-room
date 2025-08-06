@@ -44,7 +44,9 @@ def restore_latest_from_gofile():
             print("✅ 成功還原 GoFile 備份：", latest_name)
         else:
             print("❌ 無法下載備份檔案：", response.status_code)
-
+        res = requests.get("https://api.gofile.io/getContent", params=payload)
+        print("📤 原始回應內容：", res.text)  # ← 加上這一行來查看實際回應
+        data = res.json()
     except Exception as e:
         print("❌ 自動還原 GoFile 備份錯誤：", str(e))
 def initialize_system():
