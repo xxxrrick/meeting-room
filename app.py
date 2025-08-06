@@ -15,7 +15,7 @@ def backup_to_gofile(filepath):
         server_res = requests.get("https://api.gofile.io/servers")
         server_res.raise_for_status()
         servers = server_res.json()["data"]["servers"]
-        server = list(servers.values())[0]["server"]  # 取第一個伺服器
+        server = servers[0]["name"]  # 正確取得伺服器名稱
 
         # Step 2: 上傳檔案
         with open(filepath, 'rb') as f:
