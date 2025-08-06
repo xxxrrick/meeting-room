@@ -8,43 +8,6 @@ from threading import Thread
 from datetime import timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
 import os
-def initialize_system():
-    print("🔁 [Init] 系統初始化中，嘗試還原 GoFile 備份...")
-    try:
-        restore_latest_from_gofile()
-    except Exception as e:
-        print("❌ [Init] 還原發生錯誤：", str(e))
-def backup_to_gofile(filepath):
-    try:
-        server_res = requests.get("https://api.gofile.io/servers")
-        server_res.raise_for_status()
-        servers = server_res.json()["data"]["servers"]
-        server = servers[0]["name"]
-
-        with open(filepath, 'rb') as f:
-            upload_url = f"https://{server}.gofile.io/uploadFile"
-            res = requests.post(upload_url,
-                                files={'file': f},
-                                data={'token': GOFILE_TOKEN})
-            res.raise_for_status()
-            result = res.json()
-
-        if result["status"] == "ok":
-            link = result["data"]["downloadPage"]
-            print("✅ 備份成功，下載連結：", link)
-            return link
-        else:
-            print("❌ 上傳失敗：", result)
-            return None
-    except Exception as e:
-        print("❌ 上傳過程出錯：", str(e))
-        return None
-
-app = Flask(__name__)
-app.secret_key = 'your-secret-key'
-GOFILE_TOKEN = "RjLjWdXaDBBw4uhiOKQhDeOevHyyYvm2"  # ← 請替換為你的 GoFile API token
-GOFILE_PARENT_FOLDER = None  # 如果你有特定上傳目錄ID可以填入，否則保持 None
-
 def restore_latest_from_gofile():
     try:
         print("📥 正在取得 GoFile 備份清單，token=", GOFILE_TOKEN)
@@ -84,6 +47,44 @@ def restore_latest_from_gofile():
 
     except Exception as e:
         print("❌ 自動還原 GoFile 備份錯誤：", str(e))
+def initialize_system():
+    print("🔁 [Init] 系統初始化中，嘗試還原 GoFile 備份...")
+    try:
+        restore_latest_from_gofile()
+    except Exception as e:
+        print("❌ [Init] 還原發生錯誤：", str(e))
+def backup_to_gofile(filepath):
+    try:
+        server_res = requests.get("https://api.gofile.io/servers")
+        server_res.raise_for_status()
+        servers = server_res.json()["data"]["servers"]
+        server = servers[0]["name"]
+
+        with open(filepath, 'rb') as f:
+            upload_url = f"https://{server}.gofile.io/uploadFile"
+            res = requests.post(upload_url,
+                                files={'file': f},
+                                data={'token': GOFILE_TOKEN})
+            res.raise_for_status()
+            result = res.json()
+
+        if result["status"] == "ok":
+            link = result["data"]["downloadPage"]
+            print("✅ 備份成功，下載連結：", link)
+            return link
+        else:
+            print("❌ 上傳失敗：", result)
+            return None
+    except Exception as e:
+        print("❌ 上傳過程出錯：", str(e))
+        return None
+
+app = Flask(__name__)
+app.secret_key = 'your-secret-key'
+GOFILE_TOKEN = "RjLjWdXaDBBw4uhiOKQhDeOevHyyYvm2"  # ← 請替換為你的 GoFile API token
+GOFILE_PARENT_FOLDER = None  # 如果你有特定上傳目錄ID可以填入，否則保持 None
+initialize_system()
+
 # === 常數設定 ===
 RENDER_URL = "https://dashboard.render.com/web/srv-d23ej2adbo4c73854pe0/deploys/dep-d29mqvngi27c73cpqv7g"
 DB_PATH = "data/database.db"
