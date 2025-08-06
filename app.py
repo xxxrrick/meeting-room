@@ -153,11 +153,9 @@ def restore_if_needed():
 def initialize_system():
     Thread(target=ping_render).start()
 
-    # 自動從 GoFile 還原（如果 DB 不存在）
-    if not os.path.exists(DB_PATH):
-        restore_latest_from_gofile()
-    else:
-        restore_if_needed()
+    # 🚨 永遠從 GoFile 還原
+    print("🔁 嘗試從 GoFile 還原最新資料庫")
+    restore_latest_from_gofile()
 
 
 def on_user_action():
