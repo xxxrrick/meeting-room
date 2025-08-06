@@ -44,7 +44,7 @@ app = Flask(__name__)
 app.secret_key = 'your-secret-key'
 GOFILE_TOKEN = "RjLjWdXaDBBw4uhiOKQhDeOevHyyYvm2"  # ← 請替換為你的 GoFile API token
 GOFILE_PARENT_FOLDER = None  # 如果你有特定上傳目錄ID可以填入，否則保持 None
-initialize_system()
+
 def restore_latest_from_gofile():
     try:
         print("📥 正在取得 GoFile 備份清單，token=", GOFILE_TOKEN)
