@@ -1,349 +1,184 @@
-import os
-import shutil
-import time
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 import sqlite3
-import requests
-from datetime import datetime
-from threading import Thread
-from datetime import timedelta
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
-import os
-def get_root_folder():
-    try:
-        res = requests.get("https://api.gofile.io/getAccountDetails", params={"token": GOFILE_TOKEN})
-        res.raise_for_status()
-        return res.json()["data"]["rootFolder"]
-    except Exception as e:
-        print("❌ 無法取得 rootFolder：", str(e))
-        return None
-def restore_latest_from_gofile():
-    try:
-        folder_id = GOFILE_PARENT_FOLDER or get_root_folder()
-        payload = {"token": GOFILE_TOKEN}
-        if folder_id:
-            payload["folderId"] = folder_id
-
-        print("📥 正在取得 GoFile 備份清單，token=", GOFILE_TOKEN)
-        res = requests.get("https://api.gofile.io/getContent", params=payload)
-
-        print("🌐 GoFile 回應狀態碼：", res.status_code)
-        print("🌐 GoFile 回應內容：", res.text[:500])  # 印前500字避免爆量
-
-        data = res.json()
-
-        if data["status"] != "ok" or "contents" not in data["data"]:
-            print("❌ 無法取得 GoFile 檔案清單")
-            print("回傳內容：", data)
-            return
-
-        contents = data["data"]["contents"]
-        db_files = []
-        for file_id, info in contents.items():
-            if info["name"].endswith(".db") and "directLink" in info:
-                db_files.append((info["name"], info["directLink"]))
-
-        if not db_files:
-            print("❌ GoFile 中找不到備份檔")
-            return
-
-        db_files.sort(reverse=True)
-        latest_name, latest_url = db_files[0]
-        print(f"🕓 正在還原 GoFile 最新備份：{latest_name}")
-
-        response = requests.get(latest_url, stream=True)
-        if response.status_code == 200:
-            with open(DB_PATH, 'wb') as f:
-                shutil.copyfileobj(response.raw, f)
-            print("✅ 成功還原 GoFile 備份：", latest_name)
-        else:
-            print("❌ 無法下載備份檔案：", response.status_code)
-
-    except Exception as e:
-        print("❌ 自動還原 GoFile 備份錯誤：", str(e))
-def initialize_system():
-    print("🔁 [Init] 系統初始化中，嘗試還原 GoFile 備份...")
-    try:
-        restore_latest_from_gofile()
-    except Exception as e:
-        print("❌ [Init] 還原發生錯誤：", str(e))
-def backup_to_gofile(filepath):
-    try:
-        server_res = requests.get("https://api.gofile.io/servers")
-        server_res.raise_for_status()
-        servers = server_res.json()["data"]["servers"]
-        server = servers[0]["name"]
-
-        with open(filepath, 'rb') as f:
-            upload_url = f"https://{server}.gofile.io/uploadFile"
-            res = requests.post(upload_url,
-                                files={'file': f},
-                                data={'token': GOFILE_TOKEN})
-            res.raise_for_status()
-            result = res.json()
-
-        if result["status"] == "ok":
-            link = result["data"]["downloadPage"]
-            print("✅ 備份成功，下載連結：", link)
-            return link
-        else:
-            print("❌ 上傳失敗：", result)
-            return None
-    except Exception as e:
-        print("❌ 上傳過程出錯：", str(e))
-        return None
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key'
-GOFILE_TOKEN = "RjLjWdXaDBBw4uhiOKQhDeOevHyyYvm2"  # ← 請替換為你的 GoFile API token
-GOFILE_PARENT_FOLDER = None  # 如果你有特定上傳目錄ID可以填入，否則保持 None
-initialize_system()
 
-# === 常數設定 ===
-RENDER_URL = "https://dashboard.render.com/web/srv-d23ej2adbo4c73854pe0/deploys/dep-d29mqvngi27c73cpqv7g"
-DB_PATH = "data/database.db"
-BACKUP_FOLDER = "backups"
-DRIVE_API_TRIGGER_URL = "https://your-api-endpoint/upload"
+ADMIN_PASS = '0000'
 
-os.makedirs("data", exist_ok=True)
-os.makedirs(BACKUP_FOLDER, exist_ok=True)
-
-
-def backup_and_upload_overwrite():
-    os.makedirs(BACKUP_FOLDER, exist_ok=True)
-
-    # 刪除所有舊備份，只保留這次
-    for f in os.listdir(BACKUP_FOLDER):
-        if f.endswith(".db"):
-            os.remove(os.path.join(BACKUP_FOLDER, f))
-
-    # 建立新備份
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    backup_path = os.path.join(BACKUP_FOLDER, f"backup_{timestamp}.db")
-    shutil.copyfile(DB_PATH, backup_path)
-
-    # 傳送 API（GoFile 或其他雲端）
-    try:
-        requests.post(DRIVE_API_TRIGGER_URL, json={"filename": backup_path})
-    except Exception as e:
-        print("❌ 上傳失敗：", str(e))  # 加上 str(e)
-
-    return backup_path
-
-
-
-def ping_render():
-    try:
-        requests.get(RENDER_URL, timeout=5)
-    except:
-        pass
-
-def restore_if_needed():
-    def is_empty(db_file):
-        try:
-            with sqlite3.connect(db_file) as conn:
-                cur = conn.cursor()
-                cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
-                tables = cur.fetchall()
-                for table in tables:
-                    if cur.execute(f"SELECT COUNT(*) FROM {table[0]}").fetchone()[0] > 0:
-                        return False
-                return True
-        except:
-            return True
-
-    if not os.path.exists(DB_PATH) or is_empty(DB_PATH):
-        backups = sorted([f for f in os.listdir(BACKUP_FOLDER) if f.endswith(".db")], reverse=True)
-        if backups:
-            latest = os.path.join(BACKUP_FOLDER, backups[0])
-            shutil.copyfile(latest, DB_PATH)
-
-
-
-
-
-def on_user_action():
-    def backup_and_upload_to_gofile():
-        # 移除舊備份
-        for f in os.listdir(BACKUP_FOLDER):
-            if f.endswith(".db"):
-                os.remove(os.path.join(BACKUP_FOLDER, f))
-
-        # 建立新備份
-        timestamp = time.strftime("%Y%m%d-%H%M%S")
-        backup_path = os.path.join(BACKUP_FOLDER, f"backup_{timestamp}.db")
-        shutil.copyfile(DB_PATH, backup_path)
-
-        # 上傳到 GoFile
-        backup_to_gofile(backup_path)
-
-    Thread(target=backup_and_upload_to_gofile).start()
-
-
-app = Flask(__name__)
-app.secret_key = 'your-secret-key'
-ADMIN_PASSWORD = '0000'
-
-DB_PATH = 'data/database.db'
-os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-
+# 初始化資料庫
 def init_db():
-    with sqlite3.connect(DB_PATH) as conn:
+    with sqlite3.connect("database.db") as conn:
         conn.execute('''CREATE TABLE IF NOT EXISTS bookings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            room TEXT NOT NULL,
-            date TEXT NOT NULL,
-            start_time TEXT NOT NULL,
-            end_time TEXT NOT NULL,
-            user TEXT NOT NULL,
-            cancel_code TEXT
-        );''')
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            room TEXT NOT NULL,
+                            date TEXT NOT NULL,
+                            start_time TEXT NOT NULL,
+                            end_time TEXT NOT NULL,
+                            user TEXT NOT NULL,
+                            cancel_password TEXT NOT NULL
+                        );''')
 init_db()
 
 @app.route('/')
 def index():
-    now = datetime.now().strftime('%Y-%m-%d %H:%M')
-    with sqlite3.connect(DB_PATH) as conn:
-        bookings = conn.execute("SELECT * FROM bookings ORDER BY date, start_time").fetchall()
-    future = [b for b in bookings if f"{b[2]} {b[4]}" >= now]
-    past = [b for b in bookings if f"{b[2]} {b[4]}" < now]
-    return render_template("index.html", bookings=future, history=past, admin=session.get('admin'))
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+    with sqlite3.connect("database.db") as conn:
+        all_bookings = conn.execute("SELECT * FROM bookings ORDER BY date, start_time").fetchall()
+
+    bookings = []
+    history = []
+    for b in all_bookings:
+        end_dt_str = f"{b[2]} {b[4]}"
+        if end_dt_str >= now_str:
+            bookings.append(b)
+        else:
+            history.append(b)
+    return render_template("index.html", bookings=bookings, history=history, admin=session.get('admin'))
 
 @app.route('/book', methods=['POST'])
 def book():
     room = request.form['room']
     date = request.form['date']
-    start = request.form['start_time']
-    end = request.form['end_time']
+    start_time = request.form['start_time']
+    end_time = request.form['end_time']
     user = request.form['user']
-    code = request.form['cancel_code']
-    repeat_weeks = int(request.form.get('repeat_weeks', '0') or 0)
+    cancel_password = request.form['cancel_password']
+    repeat_weeks = request.form.get('repeat_weeks')
+
     now = datetime.now()
-
-    if not date or not start or not end or not user or not code:
-        flash("所有欄位皆為必填", "error")
-        return redirect(url_for('index'))
-    if start >= end:
-        flash("起始時間不得晚於結束時間", "error")
-        return redirect(url_for('index'))
-    start_dt = datetime.strptime(f"{date} {start}", "%Y-%m-%d %H:%M")
+    start_dt = datetime.strptime(f"{date} {start_time}", "%Y-%m-%d %H:%M")
     if start_dt < now:
-        flash("無法預約過去時間", "error")
+        flash("無法預約過去時間。", "error")
+        return redirect(url_for('index'))
+    if start_time >= end_time:
+        flash("起始時間必須早於結束時間。", "error")
         return redirect(url_for('index'))
 
-    def is_conflict(d):
-        with sqlite3.connect(DB_PATH) as conn:
-            row = conn.execute('''SELECT * FROM bookings WHERE room=? AND date=?
-                AND ((start_time < ? AND end_time > ?) OR
-                     (start_time < ? AND end_time > ?) OR
-                     (start_time >= ? AND start_time < ?))''',
-                (room, d, end, end, start, start, start, end)).fetchone()
-            return bool(row)
-
-    def insert(d):
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.execute("INSERT INTO bookings (room, date, start_time, end_time, user, cancel_code) VALUES (?, ?, ?, ?, ?, ?)",
-                         (room, d, start, end, user, code))
+    def insert_booking(d):
+        with sqlite3.connect("database.db") as conn:
+            cursor = conn.cursor()
+            conflict = cursor.execute('''SELECT * FROM bookings WHERE room=? AND date=?
+                                         AND ((start_time < ? AND end_time > ?) OR
+                                              (start_time < ? AND end_time > ?) OR
+                                              (start_time >= ? AND start_time < ?))''',
+                                       (room, d, end_time, end_time, start_time, start_time, start_time, end_time)).fetchone()
+            if conflict:
+                return False
+            cursor.execute("INSERT INTO bookings (room, date, start_time, end_time, user, cancel_password) VALUES (?, ?, ?, ?, ?, ?)",
+                           (room, d, start_time, end_time, user, cancel_password))
             conn.commit()
+            return True
 
-    for i in range(repeat_weeks + 1):
-        new_date = (datetime.strptime(date, "%Y-%m-%d") + timedelta(weeks=i)).strftime("%Y-%m-%d")
-        if is_conflict(new_date):
-            flash(f"{new_date} 預約時段衝突", "error")
-            return redirect(url_for('index'))
-        insert(new_date)
+    success = insert_booking(date)
+    if not success:
+        flash("此時段已被預約，請選擇其他時間。", "error")
+        return redirect(url_for('index'))
 
-    flash("✅ 預約成功", "success")
-    on_user_action()
+    if repeat_weeks and repeat_weeks.isdigit():
+        base_date = datetime.strptime(date, "%Y-%m-%d")
+        for i in range(1, int(repeat_weeks)):
+            next_date = (base_date + timedelta(weeks=i)).strftime("%Y-%m-%d")
+            insert_booking(next_date)
+
+    flash("預約成功！", "success")
     return redirect(url_for('index'))
 
-@app.route('/cancel/<int:id>', methods=['GET', 'POST'])
+@app.route('/cancel/<int:id>', methods=['POST'])
 def cancel(id):
     if session.get('admin'):
-        with sqlite3.connect(DB_PATH) as conn:
+        with sqlite3.connect("database.db") as conn:
             conn.execute("DELETE FROM bookings WHERE id=?", (id,))
-            flash("✅ 管理員已取消預約", "success")
-            on_user_action()
-    elif request.method == 'POST':
-        code = request.form.get('code')
-        with sqlite3.connect(DB_PATH) as conn:
-            row = conn.execute("SELECT cancel_code FROM bookings WHERE id=?", (id,)).fetchone()
-            if row and row[0] == code:
-                conn.execute("DELETE FROM bookings WHERE id=?", (id,))
-                flash("✅ 預約已取消", "success")
-                on_user_action()
-            else:
-                flash("❌ 密碼錯誤", "error")
+            conn.commit()
+        flash("已由管理員取消預約", "success")
         return redirect(url_for('index'))
-    else:
-        return f'''
-            <h3>輸入取消密碼：</h3>
-            <form method="POST">
-                <input type="password" name="code" required>
-                <button type="submit">確定取消</button>
-            </form>
-        '''
+
+    password = request.form.get('cancel_password')
+    with sqlite3.connect("database.db") as conn:
+        cursor = conn.cursor()
+        row = cursor.execute("SELECT cancel_password FROM bookings WHERE id=?", (id,)).fetchone()
+        if row and row[0] == password:
+            cursor.execute("DELETE FROM bookings WHERE id=?", (id,))
+            conn.commit()
+            flash("已成功取消預約", "success")
+        else:
+            flash("密碼錯誤，無法取消預約", "error")
     return redirect(url_for('index'))
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
+    global ADMIN_PASS
     if request.method == 'POST':
-        if request.form['password'] == ADMIN_PASSWORD:
+        if request.form['password'] == ADMIN_PASS:
             session['admin'] = True
-            flash("✅ 管理員登入成功", "success")
+            flash("登入成功", "success")
             return redirect(url_for('index'))
-        flash("❌ 密碼錯誤", "error")
-    return '''
-        <h2>管理員登入</h2>
-        <form method="POST">
-            密碼：<input type="password" name="password">
-            <button type="submit">登入</button>
-        </form><br><a href="/">⬅ 回主頁</a>
-    '''
+        flash("登入失敗", "error")
+    return '''<form method="POST">
+        密碼：<input name="password" type="password"><br>
+        <button type="submit">登入</button>
+    </form><br><a href='/'>返回首頁</a>'''
 
 @app.route('/admin/logout')
 def admin_logout():
     session.pop('admin', None)
-    flash("🚪 已登出", "success")
+    flash("已登出管理員身份。", "success")
     return redirect(url_for('index'))
 
-@app.route('/backup_db')
-def backup_db():
+@app.route('/admin')
+def admin_panel():
     if not session.get('admin'):
-        flash("僅限管理員操作", "error")
-        return redirect(url_for('index'))
-    os.makedirs("backups", exist_ok=True)
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    path = f"backups/backup_{timestamp}.db"
-    shutil.copyfile(DB_PATH, path)
-    flash("✅ 資料庫備份成功", "success")
-    return send_file(path, as_attachment=True)
+        return redirect(url_for('admin_login'))
+    with sqlite3.connect("database.db") as conn:
+        bookings = conn.execute("SELECT * FROM bookings ORDER BY date, start_time").fetchall()
+    out = "<h2>管理員後台</h2><ul>"
+    for b in bookings:
+        out += f"<li>{b[1]} | {b[2]} {b[3]}~{b[4]} by {b[5]} <a href='/force_cancel/{b[0]}'>[強制取消]</a></li>"
+    out += "</ul>"
+    out += "<br><a href='/admin/change_password'>🔒 更改管理員密碼</a>"
+    out += "<br><a href='/admin/logout'>🚪 登出</a>"
+    out += "<br><a href='/'>返回首頁</a>"
+    return out
 
-@app.route('/restore_db', methods=['GET', 'POST'])
-def restore_db():
+@app.route('/admin/change_password', methods=['GET', 'POST'])
+def change_admin_password():
+    global ADMIN_PASS
     if not session.get('admin'):
-        flash("僅限管理員操作", "error")
-        return redirect(url_for('index'))
+        return redirect(url_for('admin_login'))
+
     if request.method == 'POST':
-        file = request.files.get('file')
-        if file and file.filename.endswith(".db"):
-            file.save(DB_PATH)
-            flash("✅ 已還原資料庫", "success")
+        current = request.form['current_password']
+        new1 = request.form['new_password']
+        new2 = request.form['confirm_password']
+
+        if current != ADMIN_PASS:
+            flash("目前密碼錯誤", "error")
+        elif new1 != new2:
+            flash("兩次輸入的新密碼不一致", "error")
+        elif not new1:
+            flash("新密碼不能為空", "error")
+        else:
+            ADMIN_PASS = new1
+            flash("密碼已成功更新！", "success")
             return redirect(url_for('index'))
-        flash("請上傳 .db 檔案", "error")
-    return '''
-        <h3>還原資料庫</h3>
-        <form method="POST" enctype="multipart/form-data">
-            <input type="file" name="file" accept=".db" required>
-            <button type="submit">還原</button>
-        </form><br><a href="/">⬅ 回主頁</a>
-    '''
-@app.route('/force_restore')
-def force_restore():
-    try:
-        restore_latest_from_gofile()
-        return "✅ 強制還原完成"
-    except Exception as e:
-        return f"❌ 強制還原失敗：{str(e)}"
+
+    return '''<form method="POST">
+        目前密碼：<input type="password" name="current_password"><br>
+        新密碼：<input type="password" name="new_password"><br>
+        確認新密碼：<input type="password" name="confirm_password"><br>
+        <button type="submit">更改密碼</button>
+    </form><br><a href='/'>返回首頁</a>'''
+
+@app.route('/force_cancel/<int:id>')
+def force_cancel(id):
+    if not session.get('admin'):
+        return redirect(url_for('admin_login'))
+    with sqlite3.connect("database.db") as conn:
+        conn.execute("DELETE FROM bookings WHERE id=?", (id,))
+        conn.commit()
+    flash("管理員已取消預約", "success")
+    return redirect(url_for('admin_panel'))
+
 if __name__ == '__main__':
-    initialize_system()
     app.run(debug=True)
